@@ -1,0 +1,363 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000200AA000200AA000200 /* NetPulseApp.swift in Sources */     = {isa = PBXBuildFile; fileRef = AA000100AA000100AA000100 /* NetPulseApp.swift */; };
+		AA000201AA000201AA000201 /* NetworkMonitor.swift in Sources */  = {isa = PBXBuildFile; fileRef = AA000101AA000101AA000101 /* NetworkMonitor.swift */; };
+		AA000202AA000202AA000202 /* PopoverView.swift in Sources */     = {isa = PBXBuildFile; fileRef = AA000102AA000102AA000102 /* PopoverView.swift */; };
+		AA000203AA000203AA000203 /* SpeedGraphView.swift in Sources */  = {isa = PBXBuildFile; fileRef = AA000103AA000103AA000103 /* SpeedGraphView.swift */; };
+		AA000204AA000204AA000204 /* Assets.xcassets in Resources */     = {isa = PBXBuildFile; fileRef = AA000106AA000106AA000106 /* Assets.xcassets */; };
+		AA000205AA000205AA000205 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA000107AA000107AA000107 /* SystemConfiguration.framework */; };
+		AA000206AA000206AA000206 /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA000108AA000108AA000108 /* CoreWLAN.framework */; };
+		AA000207AA000207AA000207 /* Charts.framework in Frameworks */   = {isa = PBXBuildFile; fileRef = AA000109AA000109AA000109 /* Charts.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AA000011AA000011AA000011 /* NetPulse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NetPulse.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000100AA000100AA000100 /* NetPulseApp.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetPulseApp.swift;    sourceTree = "<group>"; };
+		AA000101AA000101AA000101 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		AA000102AA000102AA000102 /* PopoverView.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift;    sourceTree = "<group>"; };
+		AA000103AA000103AA000103 /* SpeedGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedGraphView.swift; sourceTree = "<group>"; };
+		AA000104AA000104AA000104 /* Info.plist */           = {isa = PBXFileReference; lastKnownFileType = text.plist.xml;          path = Info.plist;           sourceTree = "<group>"; };
+		AA000105AA000105AA000105 /* NetPulse.entitlements */= {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetPulse.entitlements;sourceTree = "<group>"; };
+		AA000106AA000106AA000106 /* Assets.xcassets */      = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog;    path = Assets.xcassets;      sourceTree = "<group>"; };
+		AA000107AA000107AA000107 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		AA000108AA000108AA000108 /* CoreWLAN.framework */   = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework;   path = System/Library/Frameworks/CoreWLAN.framework;   sourceTree = SDKROOT; };
+		AA000109AA000109AA000109 /* Charts.framework */     = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Charts.framework;     path = System/Library/Frameworks/Charts.framework;     sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA000022AA000022AA000022 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000205AA000205AA000205 /* SystemConfiguration.framework in Frameworks */,
+				AA000206AA000206AA000206 /* CoreWLAN.framework in Frameworks */,
+				AA000207AA000207AA000207 /* Charts.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA000001AA000001AA000001 /* root */ = {
+			isa = PBXGroup;
+			children = (
+				AA000004AA000004AA000004 /* NetPulse */,
+				AA000003AA000003AA000003 /* Products */,
+				AA000005AA000005AA000005 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		AA000003AA000003AA000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA000011AA000011AA000011 /* NetPulse.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AA000004AA000004AA000004 /* NetPulse */ = {
+			isa = PBXGroup;
+			children = (
+				AA000100AA000100AA000100 /* NetPulseApp.swift */,
+				AA000101AA000101AA000101 /* NetworkMonitor.swift */,
+				AA000102AA000102AA000102 /* PopoverView.swift */,
+				AA000103AA000103AA000103 /* SpeedGraphView.swift */,
+				AA000106AA000106AA000106 /* Assets.xcassets */,
+				AA000104AA000104AA000104 /* Info.plist */,
+				AA000105AA000105AA000105 /* NetPulse.entitlements */,
+			);
+			path = NetPulse;
+			sourceTree = "<group>";
+		};
+		AA000005AA000005AA000005 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AA000107AA000107AA000107 /* SystemConfiguration.framework */,
+				AA000108AA000108AA000108 /* CoreWLAN.framework */,
+				AA000109AA000109AA000109 /* Charts.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA000010AA000010AA000010 /* NetPulse */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000031AA000031AA000031 /* Build configuration list for PBXNativeTarget "NetPulse" */;
+			buildPhases = (
+				AA000020AA000020AA000020 /* Sources */,
+				AA000022AA000022AA000022 /* Frameworks */,
+				AA000021AA000021AA000021 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NetPulse;
+			productName = NetPulse;
+			productReference = AA000011AA000011AA000011 /* NetPulse.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA000002AA000002AA000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					AA000010AA000010AA000010 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = AA000030AA000030AA000030 /* Build configuration list for PBXProject "NetPulse" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA000001AA000001AA000001;
+			productRefGroup = AA000003AA000003AA000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA000010AA000010AA000010 /* NetPulse */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA000021AA000021AA000021 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000204AA000204AA000204 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA000020AA000020AA000020 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000200AA000200AA000200 /* NetPulseApp.swift in Sources */,
+				AA000201AA000201AA000201 /* NetworkMonitor.swift in Sources */,
+				AA000202AA000202AA000202 /* PopoverView.swift in Sources */,
+				AA000203AA000203AA000203 /* SpeedGraphView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AA000040AA000040AA000040 /* Debug (Project) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA000041AA000041AA000041 /* Release (Project) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		AA000042AA000042AA000042 /* Debug (Target) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NetPulse/NetPulse.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NetPulse/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftmeter.app;
+				PRODUCT_NAME = SwiftMeter;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AA000043AA000043AA000043 /* Release (Target) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NetPulse/NetPulse.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NetPulse/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftmeter.app;
+				PRODUCT_NAME = SwiftMeter;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA000030AA000030AA000030 /* Build configuration list for PBXProject "NetPulse" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000040AA000040AA000040 /* Debug */,
+				AA000041AA000041AA000041 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000031AA000031AA000031 /* Build configuration list for PBXNativeTarget "NetPulse" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000042AA000042AA000042 /* Debug */,
+				AA000043AA000043AA000043 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = AA000002AA000002AA000002 /* Project object */;
+}
