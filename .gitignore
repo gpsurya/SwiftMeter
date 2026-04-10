@@ -1,6 +1,9 @@
 # Build output
 build/
 
+# Distribution packages (upload these as GitHub Release assets, not in repo)
+*.dmg
+
 # macOS system files
 .DS_Store
 **/.DS_Store

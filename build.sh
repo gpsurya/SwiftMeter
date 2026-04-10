@@ -28,17 +28,17 @@ swiftc -O \
   -framework SystemConfiguration  \
   -framework Network              \
   -framework Charts               \
-  NetPulse/NetPulseApp.swift      \
-  NetPulse/NetworkMonitor.swift   \
-  NetPulse/PopoverView.swift      \
-  NetPulse/SpeedGraphView.swift   \
+  SwiftMeter/NetPulseApp.swift      \
+  SwiftMeter/NetworkMonitor.swift   \
+  SwiftMeter/PopoverView.swift      \
+  SwiftMeter/SpeedGraphView.swift   \
   -o "$APP/Contents/MacOS/$APP_NAME"
 
 # ── App Icon ──────────────────────────────────────────────────────────────
-[ -f "NetPulse/AppIcon.icns" ] && cp "NetPulse/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+[ -f "SwiftMeter/AppIcon.icns" ] && cp "SwiftMeter/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 # ── Info.plist ─────────────────────────────────────────────────────────────
-cp NetPulse/Info.plist "$APP/Contents/Info.plist"
+cp SwiftMeter/Info.plist "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME"                    "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID"                   "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME"                          "$APP/Contents/Info.plist"
