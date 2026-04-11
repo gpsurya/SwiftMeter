@@ -382,7 +382,7 @@ struct PopoverContentView: View {
 
     private var footerSection: some View {
         HStack {
-            Text("SwiftMeter v1.0.0")
+            Text("SwiftMeter v1.0.1")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
 

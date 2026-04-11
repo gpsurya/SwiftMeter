@@ -454,12 +454,15 @@ class NetworkMonitor: NSObject, ObservableObject {
                 }
             } else if family == AF_INET6 {
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if getnameinfo(addr, socklen_t(addr.pointee.sa_len),
-                               &host, socklen_t(host.count),
+                // Use the concrete struct size; sa_len can be zero on some macOS builds
+                let addrLen = socklen_t(MemoryLayout<sockaddr_in6>.size)
+                if getnameinfo(addr, addrLen, &host, socklen_t(host.count),
                                nil, 0, NI_NUMERICHOST) == 0 {
                     let ip = String(cString: host)
-                    if !ip.hasPrefix("fe80"), !ip.hasPrefix("::1"), prio > currentV6Priority {
-                        info.v6 = ip.count > 30 ? String(ip.prefix(28)) + "…" : ip
+                    // Strip scope ID (e.g. "fe80::abc%en0" → "fe80::abc") before prefix check
+                    let bare = ip.components(separatedBy: "%").first ?? ip
+                    if !bare.hasPrefix("fe80"), bare != "::1", prio > currentV6Priority {
+                        info.v6 = bare.count > 30 ? String(bare.prefix(28)) + "…" : bare
                         currentV6Priority = prio
                     }
                 }
@@ -505,7 +508,8 @@ class NetworkMonitor: NSObject, ObservableObject {
         }
 
         // Stage 2: CWWiFiClient for RSSI / channel / tx-rate (main-thread only)
-        if let iface = CWWiFiClient.shared().interface() {
+        // interfaces()?.first replaces the deprecated interface() on macOS 14+
+        if let iface = CWWiFiClient.shared().interfaces()?.first {
             let rssi = iface.rssiValue()
             wifiRSSI          = rssi
             wifiTxRate        = iface.transmitRate()

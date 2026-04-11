@@ -10,76 +10,90 @@ struct SwiftMeterApp: App {
             PopoverContentView(monitor: monitor)
                 .frame(width: 340, height: 590)
         } label: {
-            Image(nsImage: StatusBarIcon.make(
-                up:   monitor.uploadSpeedString,
-                down: monitor.downloadSpeedString
-            ))
+            // Use a dedicated View so @Environment(\.colorScheme) reads
+            // the status-bar button's own appearance (including desktop tinting),
+            // not the app window's appearance.
+            StatusBarLabel(up: monitor.uploadSpeedString,
+                           down: monitor.downloadSpeedString)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-// MARK: - Status Bar Icon
-// Two-line "↑ upload / ↓ download" NSImage with coloured arrows
-// matching the app palette: ↑ = blue, ↓ = green.
-// Speed numbers use NSColor.labelColor so they adapt to light/dark mode.
+// MARK: - Status Bar Label View
+
+private struct StatusBarLabel: View {
+    let up: String
+    let down: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Image(nsImage: StatusBarIcon.make(
+            up: up,
+            down: down,
+            isDark: colorScheme == .dark
+        ))
+    }
+}
+
+// MARK: - Status Bar Icon (NSImage)
+//
+// • Flipped drawing context (y=0 at top, y increases downward):
+//   draw(at:) places the TOP-LEFT of the text at the given point —
+//   same as standard screen coordinates, no baseline-confusion.
+// • Width is sized to the wider of the two actual speed strings
+//   (+ a minimum so the icon stays stable at "0 B/s").
+// • Text colour is passed in as white/black based on the menu-bar
+//   colour scheme so it stays readable on any wallpaper.
 
 enum StatusBarIcon {
-    // Mirror the Color extensions so AppKit drawing uses the same tones.
     private static let arrowUp   = NSColor(red: 0.25, green: 0.55, blue: 1.00, alpha: 1.0)
     private static let arrowDown = NSColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1.0)
 
-    static func make(up: String, down: String) -> NSImage {
-        let font = NSFont.monospacedSystemFont(ofSize: 8.5, weight: .medium)
+    static func make(up: String, down: String, isDark: Bool) -> NSImage {
+        let font      = NSFont.monospacedSystemFont(ofSize: 8.5, weight: .medium)
+        let sizeAttrs: [NSAttributedString.Key: Any] = [.font: font]
 
-        // Metric attrs (color irrelevant for size measurement)
-        let metricAttrs: [NSAttributedString.Key: Any] = [.font: font]
+        let arrowW = ("↑ " as NSString).size(withAttributes: sizeAttrs).width
 
-        // Fixed image width — based on the widest realistic string so the icon
-        // never shifts as speed values change (e.g., "0 B/s" vs "999.9 MBps").
-        let refW  = ("↑ 999.9 MBps" as NSString).size(withAttributes: metricAttrs).width
-        let imgW  = ceil(refW) + 6      // 3 pt left + 3 pt right margin
+        // Size the image to the wider of the two current strings.
+        // Minimum avoids collapse when showing "0 B/s".
+        let upW   = arrowW + (up   as NSString).size(withAttributes: sizeAttrs).width
+        let downW = arrowW + (down as NSString).size(withAttributes: sizeAttrs).width
+        // "999.9 KBps" has the same char count as "999.9 MBps" / "99.99 GBps"
+        // so the icon width stays stable across all speed ranges.
+        let minW  = ("↑ 999.9 KBps" as NSString).size(withAttributes: sizeAttrs).width
+        let imgW  = ceil(max(upW, downW, minW)) + 8   // 4 pt left + 4 pt right
+
         let imgH: CGFloat = 22
 
-        // Precise baselines via actual font metrics.
-        // In non-flipped AppKit coords: y = 0 at bottom, y = 22 at top.
-        // draw(at:) places the TEXT BASELINE at the given y; ascenders go up.
-        let asc   = font.ascender           // ≈  +7 pt
-        let desc  = abs(font.descender)     // ≈   2 pt
-        let lineH = asc + desc              // ≈   9 pt
+        // Row height = ascender + |descender|; centre two rows in 22 pt.
+        let asc   = font.ascender
+        let lineH = asc + abs(font.descender)
         let pad   = max((imgH - 2 * lineH) / 2, 1)
-        let base2 = pad + desc              // ↓ download baseline
-        let base1 = base2 + lineH           // ↑ upload   baseline
 
-        // Pre-compute arrow width (same for ↑ and ↓ in monospaced font)
-        let arrowW = ("↑ " as NSString).size(withAttributes: metricAttrs).width
+        // In a FLIPPED context draw(at:) places the text TOP at the given y.
+        // Row 1 top = pad from the image top; Row 2 top = pad + lineH.
+        let y1 = pad          // upload row
+        let y2 = pad + lineH  // download row
 
-        let image = NSImage(size: NSSize(width: imgW, height: imgH), flipped: false) { _ in
-            // Use performAsCurrentDrawingAppearance (macOS 12+) so that
-            // NSColor.labelColor resolves to the correct light/dark tone.
-            let doDrawing: () -> Void = {
-                let textColor = NSColor.labelColor
-                let upAttrs:   [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: arrowUp]
-                let downAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: arrowDown]
-                let numAttrs:  [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
+        let textColor = isDark ? NSColor.white : NSColor.black
 
-                // Row 1 (top):    ↑ in blue  + upload speed
-                ("↑ " as NSString).draw(at: NSPoint(x: 3, y: base1), withAttributes: upAttrs)
-                (up   as NSString).draw(at: NSPoint(x: 3 + arrowW, y: base1), withAttributes: numAttrs)
+        let image = NSImage(size: NSSize(width: imgW, height: imgH), flipped: true) { _ in
+            let upAttrs:   [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: arrowUp]
+            let downAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: arrowDown]
+            let numAttrs:  [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
 
-                // Row 2 (bottom): ↓ in green + download speed
-                ("↓ " as NSString).draw(at: NSPoint(x: 3, y: base2), withAttributes: downAttrs)
-                (down as NSString).draw(at: NSPoint(x: 3 + arrowW, y: base2), withAttributes: numAttrs)
-            }
+            // Row 1: ↑ (blue) + upload speed
+            ("↑ " as NSString).draw(at: NSPoint(x: 4, y: y1), withAttributes: upAttrs)
+            (up   as NSString).draw(at: NSPoint(x: 4 + arrowW, y: y1), withAttributes: numAttrs)
 
-            if let appearance = NSApp?.effectiveAppearance {
-                appearance.performAsCurrentDrawingAppearance(doDrawing)
-            } else {
-                doDrawing()
-            }
+            // Row 2: ↓ (green) + download speed
+            ("↓ " as NSString).draw(at: NSPoint(x: 4, y: y2), withAttributes: downAttrs)
+            (down as NSString).draw(at: NSPoint(x: 4 + arrowW, y: y2), withAttributes: numAttrs)
+
             return true
         }
-        // isTemplate = false: preserves the blue/green arrow colours.
         image.isTemplate = false
         return image
     }

@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square&logo=apple"/>
   <img src="https://img.shields.io/badge/Swift-5.9-orange?style=flat-square&logo=swift"/>
-  <img src="https://img.shields.io/badge/version-1.0.0-brightgreen?style=flat-square"/>
+  <img src="https://img.shields.io/badge/version-1.0.1-brightgreen?style=flat-square"/>
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square"/>
   <img src="https://img.shields.io/badge/no%20Xcode%20needed-%E2%9C%93-success?style=flat-square"/>
 </p>
@@ -63,6 +63,19 @@ Click the status bar item to open the full popover:
 ```bash
 xcode-select --install
 ```
+
+---
+
+## Changelog
+
+### v1.0.1
+- **Status bar icon** — fixed: now shows both ↑ upload and ↓ download with values; stable icon width across all speed ranges
+- **Text colour** — reads the menu bar's own colour scheme (adapts to dark wallpapers / desktop tinting)
+- **IPv6 collection** — more robust `getnameinfo` call; scope IDs stripped before prefix check
+- **CWWiFiClient** — replaced deprecated `interface()` with `interfaces()?.first` (macOS 14+)
+
+### v1.0.0
+- Initial release
 
 ---
 
