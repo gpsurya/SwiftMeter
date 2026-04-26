@@ -384,11 +384,28 @@ struct PopoverContentView: View {
 
     // MARK: - Footer
 
+    private static let appVersion: String =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "—"
+
+    private static let repoURL = URL(string: "https://github.com/gpsurya/SwiftMeter")!
+
     private var footerSection: some View {
         HStack {
-            Text("SwiftMeter v1.0.1")
-                .font(.system(size: 10, weight: .medium))
+            Button {
+                NSWorkspace.shared.open(Self.repoURL)
+            } label: {
+                HStack(spacing: 4) {
+                    Text("SwiftMeter v\(Self.appVersion)")
+                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.system(size: 9, weight: .semibold))
+                }
                 .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open SwiftMeter on GitHub")
 
             Spacer()
 
