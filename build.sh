@@ -32,6 +32,10 @@ swiftc -O \
   SwiftMeter/NetworkMonitor.swift   \
   SwiftMeter/PopoverView.swift      \
   SwiftMeter/SpeedGraphView.swift   \
+  SwiftMeter/Monitor/Stats.swift    \
+  SwiftMeter/Monitor/Identity.swift \
+  SwiftMeter/Monitor/WiFi.swift     \
+  SwiftMeter/Monitor/Latency.swift  \
   -o "$APP/Contents/MacOS/$APP_NAME"
 
 # ── App Icon ──────────────────────────────────────────────────────────────

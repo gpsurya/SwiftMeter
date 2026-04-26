@@ -1,9 +1,6 @@
 import Foundation
 import AppKit
-import Darwin
-import CoreWLAN
 import CoreLocation
-import SystemConfiguration
 import Network
 
 // MARK: - Data Models
@@ -15,7 +12,16 @@ struct SpeedSample: Identifiable {
     let upload: Double    // bytes/sec
 }
 
-// MARK: - Network Monitor
+// MARK: - Network Monitor (coordinator)
+//
+// Owns all `@Published` UI state and the master DispatchSourceTimer. Heavy
+// data collection lives in the `Monitor/*.swift` modules:
+//   • Stats     — getifaddrs byte counters
+//   • Identity  — IPv4/IPv6/public IP/ISP/geo, gateway, DNS
+//   • WiFi      — SSID, RSSI, channel, band, TX rate
+//   • Latency   — single-host TCP RTT probe
+//
+// Each tick: collect on a background queue, apply on main.
 
 class NetworkMonitor: NSObject, ObservableObject {
 
@@ -78,12 +84,13 @@ class NetworkMonitor: NSObject, ObservableObject {
     private var wasConnected: Bool           = false
     private var isLatencyMeasuring: Bool     = false
 
-    // Popover visibility — drives throttling. When hidden we only sample bytes
-    // (needed for the menu-bar icon) and skip WiFi/IP/DNS/latency/graph work.
+    // Popover visibility — drives throttling. When hidden we only sample
+    // bytes (needed for the menu-bar icon) and skip WiFi/IP/DNS/latency
+    // / graph work.
     private var isPopoverVisible: Bool       = false
     private var ssidNeedsRefresh: Bool       = true
 
-    // WiFi SSID cached from shell (background-safe fallback)
+    // WiFi SSID cached from shell (background-safe fallback used by WiFi.collectMain)
     private var cachedSSID: String?          = nil
 
     // CoreLocation manager — grants CWWiFiClient.ssid() access on macOS 14+
@@ -114,23 +121,15 @@ class NetworkMonitor: NSObject, ObservableObject {
         }
     }
 
-    private struct IPInfoResponse: Decodable {
-        let ip:      String?
-        let city:    String?
-        let region:  String?
-        let country: String?
-        let org:     String?   // "AS7922 Comcast Cable Communications"
-    }
-
     // MARK: - Init
 
     override init() {
         super.init()
         loadSession()
         setupPathMonitor()
-        setupLocationManager()   // request Location → unlocks CWWiFiClient.ssid()
+        setupLocationManager()
         startTimer()
-        Task { await fetchPublicIP() }
+        Task { await refreshPublicIP() }
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil, queue: .main
@@ -148,18 +147,18 @@ class NetworkMonitor: NSObject, ObservableObject {
     func setPopoverVisible(_ visible: Bool) {
         let wasVisible = isPopoverVisible
         isPopoverVisible = visible
-        // When the popover opens, refresh the slow-moving info immediately
-        // so users don't see stale values from while it was hidden.
+        // When the popover opens, refresh slow-moving info immediately so
+        // users don't see stale values from while it was hidden.
         if visible && !wasVisible {
             bgQueue.async { [weak self] in
                 guard let self else { return }
-                let ips     = self.collectIPAddresses()
-                let netConf = self.collectNetworkConfig()
+                let ips     = Identity.collectIPs()
+                let netConf = Identity.collectNetworkConfig()
                 DispatchQueue.main.async {
                     self.applyIPs(ips)
                     self.applyNetConf(netConf)
-                    if self.connectionType == .wifi { self.collectAndApplyWiFi() }
-                    Task { await self.measureLatency() }
+                    if self.connectionType == .wifi { self.applyWiFiSnapshot() }
+                    Task { await self.runLatencyProbe() }
                 }
             }
         }
@@ -214,7 +213,6 @@ class NetworkMonitor: NSObject, ObservableObject {
     // MARK: - Location Manager (unlocks CWWiFiClient.ssid() on macOS 14+)
 
     private func setupLocationManager() {
-        // CLLocationManager must be created on the main thread
         DispatchQueue.main.async {
             let lm = CLLocationManager()
             lm.delegate = self
@@ -251,7 +249,7 @@ class NetworkMonitor: NSObject, ObservableObject {
                     self.connectionType = .disconnected
                 }
 
-                // ── Network went DOWN: erase public WAN / ISP info ──────────
+                // Network went DOWN: erase public WAN / ISP info
                 if wasConn && !nowConnected {
                     self.publicIP  = "--"
                     self.ispName   = "--"
@@ -263,10 +261,10 @@ class NetworkMonitor: NSObject, ObservableObject {
                     self.ssidNeedsRefresh = true
                 }
 
-                // ── Network came UP: refresh public WAN / ISP info ──────────
+                // Network came UP: refresh public WAN / ISP info
                 if !wasConn && nowConnected {
                     self.ssidNeedsRefresh = true
-                    Task { await self.fetchPublicIP() }
+                    Task { await self.refreshPublicIP() }
                 }
             }
         }
@@ -275,8 +273,8 @@ class NetworkMonitor: NSObject, ObservableObject {
 
     // MARK: - Timer
     //
-    // One DispatchSourceTimer on a utility queue (instead of a 1 s NSTimer on
-    // the main run loop) — avoids waking the main thread every second.
+    // One DispatchSourceTimer on a utility queue (instead of a 1 s NSTimer
+    // on the main run loop) — avoids waking the main thread every second.
     //
     // Per-tick work is split by cost:
     //   • Every tick (1 s):  byte counters → drives status-bar icon. Cheap.
@@ -300,7 +298,7 @@ class NetworkMonitor: NSObject, ObservableObject {
         let currentTick = tickCount
 
         // Always: cheap byte-counter sample. Drives the menu-bar icon.
-        let stats = collectNetStats()
+        let stats = Stats.collect()
 
         // Slow tier cadence: 5 s open, 30 s hidden.
         let slowInterval = isPopoverVisible ? 5 : 30
@@ -310,14 +308,14 @@ class NetworkMonitor: NSObject, ObservableObject {
         let latencyInterval = isPopoverVisible ? 10 : 60
         let runLatency = (currentTick == 1) || (currentTick % latencyInterval == 0)
 
-        let ips     = runSlow ? collectIPAddresses()   : nil
-        let netConf = runSlow ? collectNetworkConfig() : nil
+        let ips     = runSlow ? Identity.collectIPs()           : nil
+        let netConf = runSlow ? Identity.collectNetworkConfig() : nil
 
         // SSID shell call: only when we don't have one yet (or network just
         // changed). SSID rarely changes mid-session; periodic polling wastes
         // power spawning Process subtasks.
         let shellSSID: String? = (ssidNeedsRefresh && connectionType == .wifi)
-            ? fetchSSIDViaNetworkSetup()
+            ? WiFi.ssidViaNetworkSetup()
             : nil
         if shellSSID != nil { ssidNeedsRefresh = false }
 
@@ -331,62 +329,18 @@ class NetworkMonitor: NSObject, ObservableObject {
 
             // CWWiFiClient is main-thread-only and only meaningful on Wi-Fi.
             if runSlow && self.connectionType == .wifi {
-                self.collectAndApplyWiFi()
+                self.applyWiFiSnapshot()
             }
 
             if runLatency {
-                Task { await self.measureLatency() }
+                Task { await self.runLatencyProbe() }
             }
         }
     }
 
-    // MARK: - Network Stats (getifaddrs)
+    // MARK: - Apply: Stats
 
-    private struct RawStats {
-        var ibytes: UInt64      = 0
-        var obytes: UInt64      = 0
-        var ipackets: UInt32    = 0
-        var opackets: UInt32    = 0
-        var errors: UInt32      = 0
-        var bestInterface: String = "--"
-        var bestPriority: Int   = 0
-    }
-
-    private func collectNetStats() -> RawStats {
-        var result = RawStats()
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0 else { return result }
-        defer { freeifaddrs(ifaddr) }
-
-        var ptr = ifaddr
-        while let ifa = ptr {
-            defer { ptr = ifa.pointee.ifa_next }
-            let name  = String(cString: ifa.pointee.ifa_name)
-            let flags = Int32(ifa.pointee.ifa_flags)
-            guard (flags & IFF_LOOPBACK) == 0,
-                  (flags & IFF_UP) != 0 else { continue }
-
-            guard let addr = ifa.pointee.ifa_addr,
-                  addr.pointee.sa_family == UInt8(AF_LINK),
-                  let rawData = ifa.pointee.ifa_data else { continue }
-
-            let s = rawData.load(as: if_data.self)
-            result.ibytes   += UInt64(s.ifi_ibytes)
-            result.obytes   += UInt64(s.ifi_obytes)
-            result.ipackets += s.ifi_ipackets
-            result.opackets += s.ifi_opackets
-            result.errors   += s.ifi_ierrors + s.ifi_oerrors
-
-            let prio = ifPriority(name)
-            if prio > result.bestPriority {
-                result.bestInterface = name
-                result.bestPriority  = prio
-            }
-        }
-        return result
-    }
-
-    private func applyStats(_ s: RawStats, recordHistory: Bool) {
+    private func applyStats(_ s: Stats.Raw, recordHistory: Bool) {
         let now     = Date()
         let elapsed = now.timeIntervalSince(lastUpdateTime)
 
@@ -456,245 +410,62 @@ class NetworkMonitor: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Interface Priority
+    // MARK: - Apply: IPs
 
-    private func ifPriority(_ name: String) -> Int {
-        switch name {
-        case "en0": return 3
-        case "en1": return 2
-        default:    return 1
-        }
-    }
-
-    // MARK: - IP Addresses
-
-    private struct IPInfo {
-        var v4: String       = "--"
-        var v6: String       = "--"
-        var subnet: String   = "--"
-        var bestIface: String = "--"
-    }
-
-    private func collectIPAddresses() -> IPInfo {
-        var info = IPInfo()
-        var currentV4Priority = 0
-        var currentV6Priority = 0
-
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0 else { return info }
-        defer { freeifaddrs(ifaddr) }
-
-        var ptr = ifaddr
-        while let ifa = ptr {
-            defer { ptr = ifa.pointee.ifa_next }
-            let name  = String(cString: ifa.pointee.ifa_name)
-            let flags = Int32(ifa.pointee.ifa_flags)
-            guard (flags & IFF_LOOPBACK) == 0,
-                  (flags & IFF_UP) != 0,
-                  let addr = ifa.pointee.ifa_addr else { continue }
-
-            let prio   = ifPriority(name)
-            let family = Int32(addr.pointee.sa_family)
-
-            if family == AF_INET {
-                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                if getnameinfo(addr, socklen_t(addr.pointee.sa_len),
-                               &host, socklen_t(host.count),
-                               nil, 0, NI_NUMERICHOST) == 0, prio > currentV4Priority {
-                    info.v4 = String(cString: host)
-                    info.bestIface = name
-                    currentV4Priority = prio
-                }
-                if let netmask = ifa.pointee.ifa_netmask, prio >= currentV4Priority - 1 {
-                    var mask = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    if getnameinfo(netmask, socklen_t(netmask.pointee.sa_len),
-                                   &mask, socklen_t(mask.count),
-                                   nil, 0, NI_NUMERICHOST) == 0 {
-                        info.subnet = String(cString: mask)
-                    }
-                }
-            } else if family == AF_INET6 {
-                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                // Use the concrete struct size; sa_len can be zero on some macOS builds
-                let addrLen = socklen_t(MemoryLayout<sockaddr_in6>.size)
-                if getnameinfo(addr, addrLen, &host, socklen_t(host.count),
-                               nil, 0, NI_NUMERICHOST) == 0 {
-                    let ip = String(cString: host)
-                    // Strip scope ID (e.g. "fe80::abc%en0" → "fe80::abc") before prefix check
-                    let bare = ip.components(separatedBy: "%").first ?? ip
-                    if !bare.hasPrefix("fe80"), bare != "::1", prio > currentV6Priority {
-                        info.v6 = bare.count > 30 ? String(bare.prefix(28)) + "…" : bare
-                        currentV6Priority = prio
-                    }
-                }
-            }
-        }
-        return info
-    }
-
-    private func applyIPs(_ info: IPInfo) {
+    private func applyIPs(_ info: Identity.IPInfo) {
         ipv4Address = info.v4
         ipv6Address = info.v6
         subnetMask  = info.subnet
         if info.bestIface != "--" { activeInterface = info.bestIface }
     }
 
-    // MARK: - WiFi Info  (must run on main thread — CWWiFiClient requirement)
+    // MARK: - Apply: Net config (gateway / DNS)
 
-    private func collectAndApplyWiFi() {
-        // Stage 1: SCDynamicStore AirPort key (no Location needed, fast)
-        var ssidFromSC: String? = nil
-        if let store = SCDynamicStoreCreate(nil, "SwiftMeter" as CFString, nil, nil) {
-            let pattern = "State:/Network/Interface/.*/AirPort" as CFString
-            if let keys = SCDynamicStoreCopyKeyList(store, pattern) as? [String] {
-                for key in keys {
-                    if let dict = SCDynamicStoreCopyValue(store, key as CFString)
-                                        as? [String: Any],
-                       let ssid = dict["SSID_STR"] as? String, !ssid.isEmpty {
-                        ssidFromSC = ssid
-                        break
-                    }
-                }
-            }
-            if ssidFromSC == nil {
-                for ifname in ["en0", "en1", "en2"] {
-                    let key = "State:/Network/Interface/\(ifname)/AirPort" as CFString
-                    if let dict = SCDynamicStoreCopyValue(store, key) as? [String: Any],
-                       let ssid = dict["SSID_STR"] as? String, !ssid.isEmpty {
-                        ssidFromSC = ssid
-                        break
-                    }
-                }
-            }
-        }
-
-        // Stage 2: CWWiFiClient for RSSI / channel / tx-rate (main-thread only)
-        // interfaces()?.first replaces the deprecated interface() on macOS 14+
-        if let iface = CWWiFiClient.shared().interfaces()?.first {
-            let rssi = iface.rssiValue()
-            wifiRSSI          = rssi
-            wifiTxRate        = iface.transmitRate()
-            wifiSignalPercent = rssiToPercent(rssi)
-
-            if let ch = iface.wlanChannel() {
-                wifiChannel = "\(ch.channelNumber)"
-                switch ch.channelBand {
-                case .band2GHz: wifiBand = "2.4 GHz"
-                case .band5GHz: wifiBand = "5 GHz"
-                case .band6GHz: wifiBand = "6 GHz"
-                default:        wifiBand = "--"
-                }
-            }
-
-            // SSID priority: SCDynamicStore → CWWiFiClient.ssid() → networksetup cache
-            let cwSSID = iface.ssid()
-            wifiSSID = ssidFromSC ?? cwSSID ?? cachedSSID ?? "--"
-        } else {
-            wifiSSID          = ssidFromSC ?? cachedSSID ?? "--"
-            wifiRSSI          = 0
-            wifiSignalPercent = 0
-        }
-    }
-
-    // MARK: - WiFi SSID via networksetup (background-safe, no Location needed)
-
-    /// Runs `/usr/sbin/networksetup -getairportnetwork <iface>` for each candidate
-    /// interface and returns the first non-empty SSID found.  Must be called on
-    /// a background thread (Process.run is blocking).
-    private func fetchSSIDViaNetworkSetup() -> String? {
-        let prefix = "Current Wi-Fi Network: "
-        for iface in ["en0", "en1", "en2"] {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
-            task.arguments     = ["-getairportnetwork", iface]
-            let out  = Pipe()
-            let err  = Pipe()
-            task.standardOutput = out
-            task.standardError  = err
-            guard (try? task.run()) != nil else { continue }
-            task.waitUntilExit()
-            let raw = String(data: out.fileHandleForReading.readDataToEndOfFile(),
-                             encoding: .utf8) ?? ""
-            guard raw.hasPrefix(prefix) else { continue }
-            let ssid = String(raw[raw.index(raw.startIndex, offsetBy: prefix.count)...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !ssid.isEmpty { return ssid }
-        }
-        return nil
-    }
-
-    // MARK: - Network Config (DNS / Gateway)
-
-    private struct NetConfig {
-        var gateway: String   = "--"
-        var dns: [String]     = []
-    }
-
-    private func collectNetworkConfig() -> NetConfig {
-        var config = NetConfig()
-        guard let store = SCDynamicStoreCreate(nil, "SwiftMeter" as CFString, nil, nil) else {
-            return config
-        }
-
-        let ipv4Key = SCDynamicStoreKeyCreateNetworkGlobalEntity(
-            nil, kSCDynamicStoreDomainState, kSCEntNetIPv4)
-        if let val = SCDynamicStoreCopyValue(store, ipv4Key) as? [String: Any],
-           let router = val["Router"] as? String {
-            config.gateway = router
-        }
-
-        let dnsKey = SCDynamicStoreKeyCreateNetworkGlobalEntity(
-            nil, kSCDynamicStoreDomainState, kSCEntNetDNS)
-        if let val = SCDynamicStoreCopyValue(store, dnsKey) as? [String: Any],
-           let servers = val["ServerAddresses"] as? [String] {
-            config.dns = Array(servers.prefix(3))
-        }
-
-        return config
-    }
-
-    private func applyNetConf(_ config: NetConfig) {
+    private func applyNetConf(_ config: Identity.NetConfig) {
         gateway    = config.gateway
         dnsServers = config.dns
     }
 
-    // MARK: - Public IP (ipinfo.io)
+    // MARK: - Apply: Wi-Fi snapshot (main-thread)
 
     @MainActor
-    func fetchPublicIP() async {
+    private func applyWiFiSnapshot() {
+        let snap = WiFi.collectMain(cachedSSID: cachedSSID)
+        wifiSSID          = snap.ssid
+        wifiRSSI          = snap.rssi
+        wifiSignalPercent = snap.signalPercent
+        wifiTxRate        = snap.txRate
+        wifiChannel       = snap.channel
+        wifiBand          = snap.band
+    }
+
+    // MARK: - Public IP
+
+    @MainActor
+    func refreshPublicIP() async {
         publicIP  = "Fetching..."
         ispName   = "--"
         ipCity    = "--"
         ipRegion  = "--"
         ipCountry = "--"
-        do {
-            let url     = URL(string: "https://ipinfo.io/json")!
-            let request = URLRequest(url: url,
-                                     cachePolicy: .reloadIgnoringLocalCacheData,
-                                     timeoutInterval: 10)
-            let (data, _) = try await URLSession.shared.data(for: request)
-            if let info = try? JSONDecoder().decode(IPInfoResponse.self, from: data) {
-                publicIP  = info.ip      ?? "--"
-                ipCity    = info.city    ?? "--"
-                ipRegion  = info.region  ?? "--"
-                ipCountry = info.country ?? "--"
-                // "AS7922 Comcast Cable" → strip leading ASN token
-                if let org = info.org {
-                    let parts = org.split(separator: " ", maxSplits: 1)
-                    ispName = parts.count > 1 ? String(parts[1]) : org
-                }
-            } else {
-                publicIP = "--"
-            }
-        } catch {
+        if let info = await Identity.fetchPublic() {
+            publicIP  = info.ip
+            ispName   = info.isp
+            ipCity    = info.city
+            ipRegion  = info.region
+            ipCountry = info.country
+        } else {
             publicIP = "--"
         }
     }
 
-    // MARK: - Latency  (TCP connect to 1.1.1.1:443 ≈ 1 RTT)
+    // Old name kept as a thin alias because PopoverView buttons may bind to it.
+    @MainActor
+    func fetchPublicIP() async { await refreshPublicIP() }
 
-    func measureLatency() async {
-        // Only one measurement at a time
+    // MARK: - Latency
+
+    func runLatencyProbe() async {
         let shouldMeasure = await MainActor.run { () -> Bool in
             guard !self.isLatencyMeasuring else { return false }
             self.isLatencyMeasuring = true
@@ -702,52 +473,17 @@ class NetworkMonitor: NSObject, ObservableObject {
         }
         guard shouldMeasure else { return }
 
-        let connection = NWConnection(
-            host: NWEndpoint.Host("1.1.1.1"),
-            port: NWEndpoint.Port(rawValue: 443)!,
-            using: .tcp
-        )
-        let start = Date()
-
-        // NSLock guards `done` — accessed from NWConnection callback queue AND
-        // the 5-second timeout queue concurrently.
-        let lock = NSLock()
-        var done = false
-
-        let ms: Int = await withCheckedContinuation { continuation in
-            let finish: (Int) -> Void = { result in
-                lock.lock(); defer { lock.unlock() }
-                guard !done else { return }
-                done = true
-                continuation.resume(returning: result)
-            }
-
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    let elapsed = Int(Date().timeIntervalSince(start) * 1_000)
-                    connection.cancel()
-                    finish(elapsed)
-                case .failed, .cancelled:
-                    finish(-1)
-                default: break
-                }
-            }
-            connection.start(queue: .global(qos: .utility))
-
-            // 5-second hard timeout
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
-                connection.cancel()
-                finish(-1)
-            }
-        }
+        let ms = await Latency.measure()
 
         await MainActor.run {
-            self.latencyMs      = ms
-            self.latencyString  = ms >= 0 ? "\(ms) ms" : "--"
+            self.latencyMs          = ms
+            self.latencyString      = ms >= 0 ? "\(ms) ms" : "--"
             self.isLatencyMeasuring = false
         }
     }
+
+    // Backwards-compat alias for anything still referencing measureLatency().
+    func measureLatency() async { await runLatencyProbe() }
 
     // MARK: - Formatting Helpers
 
@@ -778,23 +514,18 @@ class NetworkMonitor: NSObject, ObservableObject {
             return String(format: "%.2f GB", Double(bytes) / (1_024 * 1_024 * 1_024))
         }
     }
-
-    private func rssiToPercent(_ rssi: Int) -> Int {
-        guard rssi != 0 else { return 0 }
-        let clamped = max(-100, min(-50, rssi))
-        return (clamped + 100) * 2
-    }
 }
 
 // MARK: - CLLocationManagerDelegate
 
 extension NetworkMonitor: CLLocationManagerDelegate {
-    /// Called when the user responds to the location-access dialog (or if the
-    /// status changes later).  After authorization the next CWWiFiClient call
-    /// will return the real SSID without needing an app restart.
+    /// Called when the user responds to the location-access dialog (or if
+    /// the status changes later). After authorisation the next CWWiFiClient
+    /// call returns the real SSID without needing an app restart.
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         DispatchQueue.main.async { [weak self] in
-            self?.collectAndApplyWiFi()
+            guard let self else { return }
+            if self.connectionType == .wifi { self.applyWiFiSnapshot() }
         }
     }
 }
