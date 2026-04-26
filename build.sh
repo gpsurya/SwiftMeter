@@ -3,7 +3,7 @@ set -e
 
 APP_NAME="SwiftMeter"
 BUNDLE_ID="com.swiftmeter.app"
-VERSION="1.1.0"
+VERSION="1.2.0"
 BUILD_DIR="$(pwd)/build"
 APP="$BUILD_DIR/$APP_NAME.app"
 SDK=$(xcrun --show-sdk-path --sdk macosx)
@@ -28,10 +28,16 @@ swiftc -O \
   -framework SystemConfiguration  \
   -framework Network              \
   -framework Charts               \
+  -framework ServiceManagement    \
+  -lsqlite3                       \
   SwiftMeter/NetPulseApp.swift      \
   SwiftMeter/NetworkMonitor.swift   \
   SwiftMeter/PopoverView.swift      \
   SwiftMeter/SpeedGraphView.swift   \
+  SwiftMeter/Settings.swift         \
+  SwiftMeter/SettingsView.swift     \
+  SwiftMeter/History.swift          \
+  SwiftMeter/HistoryView.swift      \
   SwiftMeter/Monitor/Stats.swift    \
   SwiftMeter/Monitor/Identity.swift \
   SwiftMeter/Monitor/WiFi.swift     \
@@ -54,46 +60,17 @@ cp SwiftMeter/Info.plist "$APP/Contents/Info.plist"
 # ── Ad-hoc sign ───────────────────────────────────────────────────────────
 codesign --sign - --force --deep "$APP"
 
-# ── Launch Agent (auto-start at login) ────────────────────────────────────
-LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
-LAUNCH_PLIST="$LAUNCH_AGENTS/${BUNDLE_ID}.plist"
-EXEC_PATH="$APP/Contents/MacOS/$APP_NAME"
-
-mkdir -p "$LAUNCH_AGENTS"
-
-cat > "$LAUNCH_PLIST" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>${BUNDLE_ID}</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${EXEC_PATH}</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <false/>
-    <key>LimitLoadToSessionType</key>
-    <string>Aqua</string>
-    <key>ProcessType</key>
-    <string>Interactive</string>
-</dict>
-</plist>
-PLIST
-
-# Unload any previous version, then load the new one
-launchctl unload "$LAUNCH_PLIST" 2>/dev/null || true
-launchctl load -w "$LAUNCH_PLIST"
+# ── Done ───────────────────────────────────────────────────────────────────
+# Auto-launch is now managed in-app by SMAppService. The user enables it
+# in Settings; macOS handles login-item registration. No LaunchAgent
+# plist install here. (Any leftover plist from older versions is removed
+# on first launch by AppSettings.migrateLegacyLaunchAgentIfNeeded().)
 
 echo ""
 echo "✓ Built:         $APP"
 echo "✓ Version:       $VERSION"
-echo "✓ Launch agent:  $LAUNCH_PLIST"
-echo "  (SwiftMeter will auto-start at next login)"
 echo ""
-echo "  Launch :  open \"$APP\""
-echo "  Stop   :  killall $APP_NAME"
+echo "  Launch     :  open \"$APP\""
+echo "  Stop       :  killall $APP_NAME"
+echo "  Auto-launch:  SwiftMeter ▸ Settings ▸ General"
 echo ""

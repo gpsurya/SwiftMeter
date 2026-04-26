@@ -133,7 +133,10 @@ class NetworkMonitor: NSObject, ObservableObject {
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil, queue: .main
-        ) { [weak self] _ in self?.saveSession() }
+        ) { [weak self] _ in
+            self?.saveSession()
+            MainActor.assumeIsolated { History.shared.flushPending() }
+        }
     }
 
     deinit {
@@ -372,6 +375,24 @@ class NetworkMonitor: NSObject, ObservableObject {
 
             sessionDownloadAccum += Double(deltaIn)
             sessionUploadAccum   += Double(deltaOut)
+
+            // Persist into the per-minute history bucket. SSID is only
+            // meaningful on Wi-Fi; ifname falls back to whatever
+            // getifaddrs picked. applyStats is always reached via
+            // DispatchQueue.main.async, so we're on the main actor in
+            // practice — assume isolation rather than async-hop.
+            let dlClamp = Int64(min(deltaIn,  UInt64(Int64.max)))
+            let ulClamp = Int64(min(deltaOut, UInt64(Int64.max)))
+            let ssidNow = connectionType == .wifi ? wifiSSID : nil
+            let ifnameNow = activeInterface
+            MainActor.assumeIsolated {
+                History.shared.record(
+                    dlBytes: dlClamp,
+                    ulBytes: ulClamp,
+                    ssid:    ssidNow,
+                    ifname:  ifnameNow
+                )
+            }
         }
         // else: counter wrap detected — keep previous speeds, skip accumulation
 

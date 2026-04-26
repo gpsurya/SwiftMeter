@@ -22,6 +22,7 @@ struct PopoverContentView: View {
                         wifiSection
                     }
                     networkConfigSection
+                    HistoryView(monitor: monitor)
                     statsSection
                     footerSection
                 }
@@ -107,6 +108,9 @@ struct PopoverContentView: View {
                 .kerning(0.8)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label.lowercased()) speed")
+        .accessibilityValue(string)
     }
 
     @ViewBuilder
@@ -325,7 +329,9 @@ struct PopoverContentView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Reset session counters")
+                    .help("Reset session counters  ⌘R")
+                    .keyboardShortcut("r", modifiers: .command)
+                    .accessibilityLabel("Reset session counters")
                 }
 
                 Text("Since \(sessionAge)")
@@ -409,6 +415,20 @@ struct PopoverContentView: View {
 
             Spacer()
 
+            Button {
+                openSettings()
+            } label: {
+                Image(systemName: "gear")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Open Settings  ⌘,")
+            .keyboardShortcut(",", modifiers: .command)
+
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
@@ -418,9 +438,23 @@ struct PopoverContentView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(.secondary.opacity(0.12), in: Capsule())
+            .keyboardShortcut("q", modifiers: .command)
         }
         .padding(.top, 2)
         .padding(.bottom, 4)
+    }
+
+    /// macOS 14 changed the standard Settings selector. Try the new one
+    /// first, fall back to the older Preferences selector. Either way the
+    /// `Settings { ... }` scene wired up in NetPulseApp.swift takes care
+    /// of the actual window.
+    private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        if NSApp.responds(to: Selector(("showSettingsWindow:"))) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        } else {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
     }
 
     // MARK: Helpers

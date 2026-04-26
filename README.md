@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square&logo=apple"/>
   <img src="https://img.shields.io/badge/Swift-5.9-orange?style=flat-square&logo=swift"/>
-  <img src="https://img.shields.io/badge/version-1.1.0-brightgreen?style=flat-square"/>
+  <img src="https://img.shields.io/badge/version-1.2.0-brightgreen?style=flat-square"/>
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square"/>
   <img src="https://img.shields.io/badge/no%20Xcode%20needed-%E2%9C%93-success?style=flat-square"/>
 </p>
@@ -45,12 +45,13 @@ Click the status bar item to open the full popover:
 - **Live menu bar icon** — stacked two-line `↑ upload` / `↓ download` with coloured arrows (blue/green)
 - **Auto-scaling units** — B/s → KBps → MBps → GBps (1024-base)
 - **60-second sparklines** — separate DL and UL charts, never overlapping
+- **Persistent usage history** — Today / 7-day / 30-day / lifetime totals + hourly and daily charts, broken down per Wi-Fi network or interface (SQLite store, default 90-day retention)
+- **Soft monthly data-cap** — set a target in Settings; SwiftMeter warns at 50/80/100% (warn-only, cannot block traffic)
 - **Wi-Fi SSID** — shown after granting Location permission (required by macOS 14+)
 - **Public IP + ISP + location** — fetched from `ipinfo.io`, auto-refreshed on reconnect
 - **Latency** — TCP connect RTT to `1.1.1.1:443`, colour-coded (green / yellow / orange / red)
-- **Session persistence** — accumulated bytes survive restarts via `UserDefaults`
 - **Battery-conscious** — `DispatchSourceTimer` on a utility queue, slow-path work throttled by popover visibility (5 s open / 30 s hidden), no continuous animations
-- **Auto-start at login** — installs a `LaunchAgent` automatically
+- **Settings scene** — proper Preferences window via ⌘, ; auto-launch via `SMAppService`
 - **Dark & Light mode** — glass-card UI with full adaptive colours
 - **Click-through footer** — version label opens the GitHub repo
 - **No Xcode required** — single `bash build.sh` command
@@ -69,6 +70,15 @@ xcode-select --install
 ---
 
 ## Changelog
+
+### v1.2.0 — Insights
+- **Persistent history** — every minute of usage is now saved to a local SQLite store under `~/Library/Application Support/SwiftMeter/history.sqlite`. Survives restarts. Older rows are pruned per the retention setting (default 90 days).
+- **History card in the popover** — Today / Last 7 days / Last 30 days / Lifetime totals, with an hourly bar chart for today and a daily-trend chart for the longer windows.
+- **Per-network breakdown** — the History card lists the top Wi-Fi networks (or interfaces, when not on Wi-Fi) by usage in the chosen window. Useful for tether/hotspot tracking.
+- **Settings scene** — a real Preferences window (`⌘,`) with **General** (auto-launch), **History** (retention + soft monthly data-cap), and **About** tabs. New gear icon in the popover footer opens it.
+- **Auto-launch via SMAppService** — replaces the manual `~/Library/LaunchAgents` plist install. Toggle from Settings ▸ General; macOS handles registration. The legacy plist is automatically removed on first launch of v1.2.
+- **Architecture** — split the 800-line `NetworkMonitor` into focused modules under `SwiftMeter/Monitor/`: `Stats.swift`, `Identity.swift`, `WiFi.swift`, `Latency.swift`. Behaviour-preserving; sets up the next feature wave.
+- **Accessibility** — VoiceOver labels on the speed header and history card; keyboard shortcuts ⌘R (reset session), ⌘, (settings), ⌘Q (quit). Full Dynamic Type pass deferred to v1.3.
 
 ### v1.1.0
 - **Battery** — major efficiency pass:
@@ -154,9 +164,20 @@ Click **Allow** — the SSID appears immediately. No GPS data is collected or tr
 ## Uninstall
 
 ```bash
+# Stop the app
 killall SwiftMeter 2>/dev/null
-launchctl unload ~/Library/LaunchAgents/com.swiftmeter.app.plist
-rm ~/Library/LaunchAgents/com.swiftmeter.app.plist
+
+# Remove the .app and the per-minute history store
+rm -rf /Applications/SwiftMeter.app
+rm -rf ~/Library/Application\ Support/SwiftMeter
+
+# Disable auto-launch (System Settings ▸ General ▸ Login Items, or):
+# (also handled automatically when you delete the .app and reboot)
+
+# v1.1 and earlier installed a LaunchAgent — v1.2+ removes this on first
+# launch, but if you're upgrading from a much older build:
+launchctl unload ~/Library/LaunchAgents/com.swiftmeter.app.plist 2>/dev/null
+rm -f ~/Library/LaunchAgents/com.swiftmeter.app.plist
 ```
 
 ---
@@ -165,14 +186,23 @@ rm ~/Library/LaunchAgents/com.swiftmeter.app.plist
 
 ```
 SwiftMeter/
-├── build.sh                      # Compile + sign + install LaunchAgent
+├── build.sh                      # Compile + ad-hoc sign
 ├── package.sh                    # Build a distributable DMG
 ├── icon.png                      # App icon (512×512 PNG)
 ├── SwiftMeter/
-│   ├── NetPulseApp.swift         # @main, MenuBarExtra, StatusBarIcon generator
-│   ├── NetworkMonitor.swift      # All data collection (speeds, WiFi, IP, latency)
+│   ├── NetPulseApp.swift         # @main, MenuBarExtra, Settings scene, StatusBarIcon
+│   ├── NetworkMonitor.swift      # Coordinator: timer, @Published state, apply funcs
 │   ├── PopoverView.swift         # Popover UI — glass cards, all sections
 │   ├── SpeedGraphView.swift      # Sparkline chart + signal-strength bars
+│   ├── HistoryView.swift         # History card: window picker, charts, top networks
+│   ├── History.swift             # SQLite-backed per-minute usage store
+│   ├── Settings.swift            # AppStorage model + SMAppService auto-launch
+│   ├── SettingsView.swift        # Preferences scene (General / History / About)
+│   ├── Monitor/
+│   │   ├── Stats.swift           # getifaddrs byte counters
+│   │   ├── Identity.swift        # IPv4/IPv6, gateway, DNS, public IP/ISP/geo
+│   │   ├── WiFi.swift            # SCDynamicStore + CWWiFiClient + networksetup
+│   │   └── Latency.swift         # TCP-RTT probe
 │   ├── AppIcon.icns              # macOS icon bundle (16 → 1024@2x)
 │   └── Info.plist                # Bundle metadata + permission strings
 └── SwiftMeter.xcodeproj          # Optional Xcode project

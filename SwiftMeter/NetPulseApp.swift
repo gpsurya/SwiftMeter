@@ -5,10 +5,16 @@ import AppKit
 struct SwiftMeterApp: App {
     @StateObject private var monitor = NetworkMonitor()
 
+    init() {
+        // Touch the singleton so the legacy-LaunchAgent migration runs and
+        // SMAppService gets the current toggle on cold start.
+        _ = AppSettings.shared
+    }
+
     var body: some Scene {
         MenuBarExtra {
             PopoverContentView(monitor: monitor)
-                .frame(width: 340, height: 590)
+                .frame(width: 340, height: 680)
         } label: {
             // Use a dedicated View so @Environment(\.colorScheme) reads
             // the status-bar button's own appearance (including desktop tinting),
@@ -17,6 +23,10 @@ struct SwiftMeterApp: App {
                            down: monitor.downloadSpeedString)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+        }
     }
 }
 
