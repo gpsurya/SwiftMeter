@@ -65,7 +65,7 @@ class NetworkMonitor: NSObject, ObservableObject {
 
     // MARK: Private
 
-    private var timer: Timer?
+    private var timer: DispatchSourceTimer?
     private var lastBytesIn: UInt64      = 0
     private var lastBytesOut: UInt64     = 0
     private var lastUpdateTime: Date     = Date()
@@ -77,6 +77,11 @@ class NetworkMonitor: NSObject, ObservableObject {
 
     private var wasConnected: Bool           = false
     private var isLatencyMeasuring: Bool     = false
+
+    // Popover visibility — drives throttling. When hidden we only sample bytes
+    // (needed for the menu-bar icon) and skip WiFi/IP/DNS/latency/graph work.
+    private var isPopoverVisible: Bool       = false
+    private var ssidNeedsRefresh: Bool       = true
 
     // WiFi SSID cached from shell (background-safe fallback)
     private var cachedSSID: String?          = nil
@@ -133,9 +138,31 @@ class NetworkMonitor: NSObject, ObservableObject {
     }
 
     deinit {
-        timer?.invalidate()
+        timer?.cancel()
         nwPathMonitor.cancel()
         saveSession()
+    }
+
+    // MARK: - Popover visibility
+
+    func setPopoverVisible(_ visible: Bool) {
+        let wasVisible = isPopoverVisible
+        isPopoverVisible = visible
+        // When the popover opens, refresh the slow-moving info immediately
+        // so users don't see stale values from while it was hidden.
+        if visible && !wasVisible {
+            bgQueue.async { [weak self] in
+                guard let self else { return }
+                let ips     = self.collectIPAddresses()
+                let netConf = self.collectNetworkConfig()
+                DispatchQueue.main.async {
+                    self.applyIPs(ips)
+                    self.applyNetConf(netConf)
+                    if self.connectionType == .wifi { self.collectAndApplyWiFi() }
+                    Task { await self.measureLatency() }
+                }
+            }
+        }
     }
 
     // MARK: - Session Persistence
@@ -233,10 +260,12 @@ class NetworkMonitor: NSObject, ObservableObject {
                     self.ipCountry = "--"
                     self.cachedSSID = nil
                     self.wifiSSID   = "--"
+                    self.ssidNeedsRefresh = true
                 }
 
                 // ── Network came UP: refresh public WAN / ISP info ──────────
                 if !wasConn && nowConnected {
+                    self.ssidNeedsRefresh = true
                     Task { await self.fetchPublicIP() }
                 }
             }
@@ -245,44 +274,68 @@ class NetworkMonitor: NSObject, ObservableObject {
     }
 
     // MARK: - Timer
+    //
+    // One DispatchSourceTimer on a utility queue (instead of a 1 s NSTimer on
+    // the main run loop) — avoids waking the main thread every second.
+    //
+    // Per-tick work is split by cost:
+    //   • Every tick (1 s):  byte counters → drives status-bar icon. Cheap.
+    //   • Slow tier:         WiFi details, IP addresses, DNS/gateway, graph
+    //                        history, latency. Runs every 5 s when popover
+    //                        open, every 30 s when hidden.
+    //   • SSID shell call:   only when needed (network just came up, or SSID
+    //                        unknown). Was firing every 5 s = 12 Process
+    //                        spawns/min — biggest battery win.
 
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.performUpdate()
-        }
-        RunLoop.main.add(timer!, forMode: .common)
-        timer?.fire()
+        let t = DispatchSource.makeTimerSource(queue: bgQueue)
+        t.schedule(deadline: .now(), repeating: 1.0, leeway: .milliseconds(200))
+        t.setEventHandler { [weak self] in self?.tick() }
+        timer = t
+        t.resume()
     }
 
-    private func performUpdate() {
+    private func tick() {
         tickCount += 1
         let currentTick = tickCount
 
-        bgQueue.async { [weak self] in
+        // Always: cheap byte-counter sample. Drives the menu-bar icon.
+        let stats = collectNetStats()
+
+        // Slow tier cadence: 5 s open, 30 s hidden.
+        let slowInterval = isPopoverVisible ? 5 : 30
+        let runSlow = (currentTick == 1) || (currentTick % slowInterval == 0)
+
+        // Latency cadence: 10 s when open, 60 s when hidden.
+        let latencyInterval = isPopoverVisible ? 10 : 60
+        let runLatency = (currentTick == 1) || (currentTick % latencyInterval == 0)
+
+        let ips     = runSlow ? collectIPAddresses()   : nil
+        let netConf = runSlow ? collectNetworkConfig() : nil
+
+        // SSID shell call: only when we don't have one yet (or network just
+        // changed). SSID rarely changes mid-session; periodic polling wastes
+        // power spawning Process subtasks.
+        let shellSSID: String? = (ssidNeedsRefresh && connectionType == .wifi)
+            ? fetchSSIDViaNetworkSetup()
+            : nil
+        if shellSSID != nil { ssidNeedsRefresh = false }
+
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.applyStats(stats, recordHistory: self.isPopoverVisible || runSlow)
 
-            let stats   = self.collectNetStats()
-            let ips     = self.collectIPAddresses()
-            let netConf = self.collectNetworkConfig()
+            if let ips     { self.applyIPs(ips) }
+            if let netConf { self.applyNetConf(netConf) }
+            if let s = shellSSID { self.cachedSSID = s }
 
-            // Fetch WiFi SSID via networksetup (blocking but bg-safe).
-            // Run on tick 1 and every 5 ticks, or whenever SSID is unknown.
-            let shellSSID: String? = (currentTick == 1 || currentTick % 5 == 0)
-                ? self.fetchSSIDViaNetworkSetup()
-                : nil
-
-            DispatchQueue.main.async {
-                self.applyStats(stats)
-                self.applyIPs(ips)
-                self.applyNetConf(netConf)
-                if let s = shellSSID { self.cachedSSID = s }
-                // WiFi details (CWWiFiClient) must run on main thread
+            // CWWiFiClient is main-thread-only and only meaningful on Wi-Fi.
+            if runSlow && self.connectionType == .wifi {
                 self.collectAndApplyWiFi()
+            }
 
-                // Latency: first tick + every 5 ticks
-                if currentTick == 1 || currentTick % 5 == 0 {
-                    Task { await self.measureLatency() }
-                }
+            if runLatency {
+                Task { await self.measureLatency() }
             }
         }
     }
@@ -333,7 +386,7 @@ class NetworkMonitor: NSObject, ObservableObject {
         return result
     }
 
-    private func applyStats(_ s: RawStats) {
+    private func applyStats(_ s: RawStats, recordHistory: Bool) {
         let now     = Date()
         let elapsed = now.timeIntervalSince(lastUpdateTime)
 
@@ -368,16 +421,24 @@ class NetworkMonitor: NSObject, ObservableObject {
         }
         // else: counter wrap detected — keep previous speeds, skip accumulation
 
-        downloadSpeedString = formatSpeed(downloadSpeed)
-        uploadSpeedString   = formatSpeed(uploadSpeed)
-        sessionDownload     = UInt64(sessionDownloadAccum)
-        sessionUpload       = UInt64(sessionUploadAccum)
+        let newDLString = formatSpeed(downloadSpeed)
+        let newULString = formatSpeed(uploadSpeed)
+        // Only assign when changed — avoids needless menu-bar icon redraws
+        if newDLString != downloadSpeedString { downloadSpeedString = newDLString }
+        if newULString != uploadSpeedString   { uploadSpeedString   = newULString }
+        sessionDownload = UInt64(sessionDownloadAccum)
+        sessionUpload   = UInt64(sessionUploadAccum)
 
-        let sample = SpeedSample(timestamp: now,
-                                 download: downloadSpeed,
-                                 upload: uploadSpeed)
-        speedHistory.append(sample)
-        if speedHistory.count > 60 { speedHistory.removeFirst() }
+        // Skip history churn when popover hidden — speedHistory drives the
+        // graph (only visible in the popover) and republishing it triggers
+        // SwiftUI invalidations even when nothing is on-screen.
+        if recordHistory {
+            let sample = SpeedSample(timestamp: now,
+                                     download: downloadSpeed,
+                                     upload: uploadSpeed)
+            speedHistory.append(sample)
+            if speedHistory.count > 60 { speedHistory.removeFirst() }
+        }
 
         packetsIn     = s.ipackets
         packetsOut    = s.opackets
@@ -389,7 +450,7 @@ class NetworkMonitor: NSObject, ObservableObject {
         lastUpdateTime = now
 
         saveTickCount += 1
-        if saveTickCount >= 10 {
+        if saveTickCount >= 30 {
             saveTickCount = 0
             saveSession()
         }

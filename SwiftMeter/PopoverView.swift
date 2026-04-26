@@ -28,6 +28,8 @@ struct PopoverContentView: View {
                 .padding(12)
             }
         }
+        .onAppear  { monitor.setPopoverVisible(true)  }
+        .onDisappear { monitor.setPopoverVisible(false) }
     }
 
     // MARK: Background
@@ -90,7 +92,6 @@ struct PopoverContentView: View {
             Image(systemName: symbol)
                 .font(.system(size: 22, weight: .medium))
                 .foregroundStyle(color)
-                .symbolEffect(.pulse, options: .repeating, value: speed > 0)
 
             Text(string)
                 .font(.system(size: 18, weight: .semibold, design: .monospaced))
@@ -295,10 +296,13 @@ struct PopoverContentView: View {
 
     private var sessionAge: String {
         let interval = Date().timeIntervalSince(monitor.sessionStartDate)
-        let totalSeconds = Int(interval)
-        let hours   = totalSeconds / 3600
+        let totalSeconds = max(0, Int(interval))
+        let days    = totalSeconds / 86_400
+        let hours   = (totalSeconds % 86_400) / 3600
         let minutes = (totalSeconds % 3600) / 60
-        if hours > 0 {
+        if days > 0 {
+            return "\(days)d \(hours)h \(minutes)m"
+        } else if hours > 0 {
             return "\(hours)h \(minutes)m"
         } else if minutes > 0 {
             return "\(minutes)m"

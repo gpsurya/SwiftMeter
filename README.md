@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square&logo=apple"/>
   <img src="https://img.shields.io/badge/Swift-5.9-orange?style=flat-square&logo=swift"/>
-  <img src="https://img.shields.io/badge/version-1.0.1-brightgreen?style=flat-square"/>
+  <img src="https://img.shields.io/badge/version-1.1.0-brightgreen?style=flat-square"/>
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square"/>
   <img src="https://img.shields.io/badge/no%20Xcode%20needed-%E2%9C%93-success?style=flat-square"/>
 </p>
@@ -67,6 +67,21 @@ xcode-select --install
 ---
 
 ## Changelog
+
+### v1.1.0
+- **Battery** — major efficiency pass:
+  - Replaced 1 s `NSTimer` on the main run loop with a `DispatchSourceTimer` on a utility queue
+  - Heavy work (Wi-Fi details, IPs, DNS / gateway, latency, graph history) throttled by popover visibility — every 5 s when open, every 30 s when hidden
+  - Latency cadence: 10 s when open, 60 s when hidden
+  - Removed periodic `networksetup` shell-out (was 12 sub-processes/min); now runs only when SSID is actually unknown
+  - `CWWiFiClient` calls skipped entirely when not on Wi-Fi
+  - Status-bar `NSImage` cached by `(up, down, isDark)` — no redraw when unrelated state changes
+  - Speed strings only re-published when actually changed
+  - Removed perpetual `.symbolEffect(.pulse, .repeating)` and the per-tick chart animation + Catmull-Rom interpolation
+  - Speed history publishing paused while popover is hidden (no off-screen SwiftUI churn)
+  - Session save cadence relaxed 10 s → 30 s
+- **Session "Since" formatter** — now shows `Xd Yh Zm` once you cross 24 hours (was capped at hours)
+- **App icon** — redesigned: dark instrument-panel squircle with the same green/blue sparklines you see inside the app
 
 ### v1.0.1
 - **Status bar icon** — fixed: now shows both ↑ upload and ↓ download with values; stable icon width across all speed ranges

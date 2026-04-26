@@ -50,7 +50,17 @@ enum StatusBarIcon {
     private static let arrowUp   = NSColor(red: 0.25, green: 0.55, blue: 1.00, alpha: 1.0)
     private static let arrowDown = NSColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1.0)
 
+    // Cache: SwiftUI re-evaluates the menu-bar label every time *any*
+    // @Published field on NetworkMonitor changes (DNS, IP, latency …),
+    // not just the speed strings. Drawing two attributed strings into
+    // an NSImage 30× a minute when the input is identical is pure
+    // wasted CPU. Cache by the fields that actually affect the bitmap.
+    private static var cacheKey: String = ""
+    private static var cachedImage: NSImage?
+
     static func make(up: String, down: String, isDark: Bool) -> NSImage {
+        let key = "\(up)|\(down)|\(isDark)"
+        if key == cacheKey, let img = cachedImage { return img }
         let font      = NSFont.monospacedSystemFont(ofSize: 8.5, weight: .medium)
         let sizeAttrs: [NSAttributedString.Key: Any] = [.font: font]
 
@@ -95,6 +105,8 @@ enum StatusBarIcon {
             return true
         }
         image.isTemplate = false
+        cacheKey    = key
+        cachedImage = image
         return image
     }
 }

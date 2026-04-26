@@ -30,7 +30,6 @@ struct MiniSparklineView: View {
                             endPoint: .bottom
                         )
                     )
-                    .interpolationMethod(.catmullRom)
 
                     LineMark(
                         x: .value("Index", index),
@@ -38,13 +37,11 @@ struct MiniSparklineView: View {
                     )
                     .foregroundStyle(color)
                     .lineStyle(StrokeStyle(lineWidth: 1.5))
-                    .interpolationMethod(.catmullRom)
                 }
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
-            .chartYScale(domain: 0...yMax)   // prevents auto-zoom on low/zero traffic
-            .animation(.easeInOut(duration: 0.6), value: data.count)
+            .chartYScale(domain: 0...yMax)
             .frame(height: 28)
             .clipShape(RoundedRectangle(cornerRadius: 4))
         }
