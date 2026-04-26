@@ -49,8 +49,10 @@ Click the status bar item to open the full popover:
 - **Public IP + ISP + location** — fetched from `ipinfo.io`, auto-refreshed on reconnect
 - **Latency** — TCP connect RTT to `1.1.1.1:443`, colour-coded (green / yellow / orange / red)
 - **Session persistence** — accumulated bytes survive restarts via `UserDefaults`
+- **Battery-conscious** — `DispatchSourceTimer` on a utility queue, slow-path work throttled by popover visibility (5 s open / 30 s hidden), no continuous animations
 - **Auto-start at login** — installs a `LaunchAgent` automatically
 - **Dark & Light mode** — glass-card UI with full adaptive colours
+- **Click-through footer** — version label opens the GitHub repo
 - **No Xcode required** — single `bash build.sh` command
 
 ---
@@ -96,7 +98,7 @@ xcode-select --install
 
 ## Install from DMG (easiest — no terminal needed)
 
-1. Download **[SwiftMeter-1.0.0.dmg](https://github.com/gpsurya/SwiftMeter/releases/latest)** from Releases
+1. Download the latest DMG from **[Releases](https://github.com/gpsurya/SwiftMeter/releases/latest)**
 2. Open the DMG → drag **SwiftMeter** into **Applications**
 3. Launch SwiftMeter from Applications
 4. Click **Allow** on the location dialog → Wi-Fi network name appears instantly
@@ -121,7 +123,7 @@ open build/SwiftMeter.app
 
 ```bash
 bash package.sh
-# → creates SwiftMeter-1.0.0.dmg in the project folder
+# → creates SwiftMeter-<version>.dmg in the project folder
 ```
 
 ---
@@ -183,12 +185,13 @@ SwiftMeter/
 | Component | Implementation |
 |---|---|
 | Speed | `getifaddrs()` byte counters; delta/elapsed per second; 32-bit wrap-safe |
-| Wi-Fi SSID | `SCDynamicStore` → `CWWiFiClient` → `networksetup` subprocess → CoreLocation |
+| Wi-Fi SSID | `SCDynamicStore` → `CWWiFiClient` → `networksetup` (on-demand only) → CoreLocation |
 | Latency | `NWConnection` TCP connect to `1.1.1.1:443` ≈ 1 RTT |
 | Public IP | Single `ipinfo.io/json` call — ip, city, region, country, org (ISP) |
-| Session | `UserDefaults` Double accumulators; saved every 10 s and on quit |
+| Session | `UserDefaults` Double accumulators; saved every 30 s and on quit |
 | Auto-start | `~/Library/LaunchAgents/com.swiftmeter.app.plist` with `RunAtLoad=true` |
-| Status bar | `NSImage` + `NSString.draw(at:)` with precise font-metric baselines |
+| Status bar | `NSImage` + `NSString.draw(at:)` cached by `(up, down, isDark)` |
+| Scheduling | `DispatchSourceTimer` on utility queue; slow-tier (Wi-Fi/IP/DNS/graph) cadence 5 s open, 30 s hidden; latency 10 s open, 60 s hidden |
 
 ---
 
